@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Features - Data Visualizer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f9fafb; color: #333; }
+    /* Navbar */
+    .navbar {
+      height: 70px;
+      width: 100%;
+      background: #ffffff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 40px;
+      border-bottom: 1px solid #e5e7eb;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      transition: 0.3s;
+    }
+    .navbar.shrink {
+      height: 55px;
+      padding: 0 30px;
+      background: #f1f5f9;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      font-weight: 700;
+      font-size: 24px;
+      color: #1e3a8a;
+    }
+    .logo img {
+      height: 40px;
+      margin-right: 10px;
+    }
+    .nav-links a {
+      margin-left: 30px;
+      text-decoration: none;
+      font-weight: 500;
+      color: #374151;
+      transition: color 0.3s;
+    }
+    .nav-links a:hover { color: #2563eb; }
+    .nav-links a.active { color: #2563eb; }
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 80px 20px;
+      background: linear-gradient(to right, #2563eb, #60a5fa);
+      color: white;
+      border-bottom-left-radius: 50px;
+      border-bottom-right-radius: 50px;
+    }
+    .hero h1 { font-size: 2.8rem; margin-bottom: 15px; font-weight: 700; }
+    .hero h2 { font-size: 2.5rem; margin-bottom: 15px; font-weight: 700; }
+    .hero p { font-size: 1.2rem; max-width: 600px; margin: auto; opacity: 0.9; }
+    /* Section Title */
+    .section-title {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: 600;
+      margin: 60px 0 30px;
+      color: #1e3a8a;
+      position: relative;
+      display: inline-block;
+    }
+    .section-title::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: -10px;
+      width: 100%;
+      height: 3px;
+      background: #2563eb;
+      border-radius: 2px;
+    }
+    /* Features */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      max-width: 1100px;
+      margin: auto;
+      padding: 20px;
+    }
+    .feature {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+      text-align: center;
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+    .feature.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .feature h3 { font-size: 1.4rem; color: #2563eb; margin-bottom: 12px; }
+    .feature p { font-size: 1rem; color: #555; line-height: 1.5; }
+    /* Footer */
+    footer {
+      margin-top: 60px;
+      background: #ffffff;
+      border-top: 1px solid #e5e7eb;
+      text-align: center;
+      padding: 20px;
+      color: #6b7280;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <div class="navbar" id="navbar">
+    <div class="logo">
+      <img src="https://cdn-icons-png.flaticon.com/512/3063/3063181.png" alt="Data Visualizer Logo">
+      Data Visualizer
+    </div>
+    <div class="nav-links">
+      <a href="landing_page.html">Home</a>
+      <a href="#" class="active">Features</a>
+    </div>
+  </div>
+  <!-- Hero -->
+  <section class="hero">
+    <h2>Our Features</h2>
+    <p>Discover what makes Data Visualizer powerful and easy to use.</p>
+  </section>
+  <!-- Features -->
+  <h2 class="section-title">Key Features</h2>
+  <section class="features" id="features">
+    <div class="feature">
+      <h3>📊 Interactive Charts</h3>
+      <p>Visualize trends, patterns, and comparisons with dynamic charts powered by Chart.js and D3.js.</p>
+    </div>
+    <div class="feature">
+      <h3>🎨 Custom Styling</h3>
+      <p>Choose colors, fonts, and layouts that match your brand identity. Make your visuals unique.</p>
+    </div>
+    <div class="feature">
+      <h3>⚡ Easy Integration</h3>
+      <p>Connect your data sources via APIs, CSV uploads, or databases with just a few clicks.</p>
+    </div>
+    <div class="feature">
+      <h3>☁️ Cloud Ready</h3>
+      <p>Access your data dashboards anytime, anywhere. Built for speed and reliability.</p>
+    </div>
+    <div class="feature">
+      <h3>🔒 Secure</h3>
+      <p>Enterprise-grade security ensures your data is safe and protected at all times.</p>
+    </div>
+  </section>
+  <!-- Footer -->
+  <footer>
+    <p>&copy; 2025 Data Visualizer. All rights reserved.</p>
+  </footer>
+  <!-- JavaScript -->
+  <script>
+    // Navbar shrink on scroll
+    window.addEventListener("scroll", function() {
+      const navbar = document.getElementById("navbar");
+      if (window.scrollY > 50) {
+        navbar.classList.add("shrink");
+      } else {
+        navbar.classList.remove("shrink");
+      }
+    });
+    // Reveal features on scroll
+    const features = document.querySelectorAll(".feature");
+    window.addEventListener("scroll", revealFeatures);
+    function revealFeatures() {
+      const trigger = window.innerHeight * 0.85;
+      features.forEach(feature => {
+        const top = feature.getBoundingClientRect().top;
+        if (top < trigger) {
+          feature.classList.add("show");
+        }
+      });
+    }
+    revealFeatures(); // initial check
+  </script>
+</body>
+</html>

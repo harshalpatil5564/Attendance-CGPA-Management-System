@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CGPA Tracker – Semester-wise Growth Insights</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121830; --muted:#aeb6d7; --accent:#7c3aed; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --border:#243055;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Arial; background:linear-gradient(180deg,#0b1020,#0b1020 40%,#0c1226); color:#e7ecff}
+    header{display:flex; gap:14px; align-items:center; padding:20px 24px; border-bottom:1px solid var(--border); position:sticky; top:0; background:rgba(11,16,32,.8); backdrop-filter: blur(8px); z-index:10}
+    header h1{font-size:20px; margin:0; letter-spacing:.2px}
+    header .tag{font-size:12px; color:var(--muted); background:#101737; border:1px solid var(--border); padding:4px 8px; border-radius:999px}
+
+    main{max-width:1100px; margin:24px auto 80px; padding:0 16px; display:grid; grid-template-columns:340px 1fr; gap:16px}
+
+    .panel{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px}
+    .panel h2{font-size:16px;margin:0 0 12px; color:#dbe3ff}
+
+    .controls label{display:block; font-size:12px; color:var(--muted); margin:10px 0 6px}
+    .controls input,.controls select,.controls button, .controls textarea{
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1530; color:#e7ecff
+    }
+    .controls textarea{min-height:110px; resize:vertical}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    .controls button{background:var(--accent); border:none; font-weight:600; cursor:pointer}
+    .controls button.secondary{background:#152047}
+
+    .student-list{display:flex; flex-direction:column; gap:8px; max-height:320px; overflow:auto; padding-right:4px}
+    .student-pill{display:flex; justify-content:space-between; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:#0e1632}
+    .student-pill b{font-size:13px}
+    .badge{font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted)}
+
+    .grid{display:grid; gap:16px}
+
+    .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; display:grid; gap:10px}
+    .card h3{margin:0; font-size:15px}
+    .insights{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+    .kpi{border:1px solid var(--border); border-radius:12px; padding:10px; background:#0f1634}
+    .kpi .label{font-size:11px; color:var(--muted); margin-bottom:6px}
+    .kpi .value{font-size:18px; font-weight:700}
+    .kpi .trend{font-size:12px}
+
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; border:1px solid var(--border); font-size:12px}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+
+    .footer{max-width:1100px; margin:24px auto; color:var(--muted); text-align:center; font-size:12px}
+    .hidden{display:none}
+    canvas{width:100% !important; height:260px !important}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Semester-wise CGPA Tracker</h1>
+    <span class="tag">Growth insights + charts</span>
+  </header>
+
+  <main>
+    <!-- Left: Controls -->
+    <section class="panel controls">
+      <h2>1) Add / Import Data</h2>
+
+      <label>Quick add (single student)</label>
+      <div class="row">
+        <input id="sName" placeholder="Student name" />
+        <input id="sGpas" placeholder="GPAs by semester (e.g. 7.2,7.8,8.1)" />
+      </div>
+      <button id="btnAdd">Add / Update Student</button>
+
+      <label style="margin-top:14px">CSV import</label>
+      <input id="csv" type="file" accept=".csv" />
+      <small style="display:block;color:var(--muted);margin-top:6px">CSV columns: <code>student,semester,gpa</code>. Example shown below.</small>
+      <button class="secondary" id="btnTemplate" style="margin-top:8px">Download CSV template</button>
+
+      <h2 style="margin-top:18px">2) Students</h2>
+      <div class="student-list" id="studentList"></div>
+
+      <h2 style="margin-top:18px">3) Export / Clear</h2>
+      <div class="row">
+        <button id="btnExport" class="secondary">Export JSON</button>
+        <button id="btnClear" class="secondary">Clear All</button>
+      </div>
+    </section>
+
+    <!-- Right: Dash -->
+    <section class="grid" id="cards"></section>
+  </main>
+
+  <div class="footer">Tip: Enter semester GPAs (SGPA). The app also computes cumulative CGPA, trends, and flags improvement.</div>
+
+  <script>
+    const state = { // name -> { name, sGpa:[...], cgpa:[...] }
+      data: {}
+    };
+
+    // Helpers
+    const mean = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
+    function cumulativeAverage(arr){
+      const out=[]; let sum=0;
+      for(let i=0;i<arr.length;i++){ sum+=arr[i]; out.push(Number((sum/(i+1)).toFixed(3))); }
+      return out;
+    }
+    function pct(a,b){ // change from a to b
+      if(a===0) return 0; return (b-a)/Math.abs(a)*100;
+    }
+    function regressionSlope(y){ // x = 1..n
+      const n=y.length; const x=[...Array(n)].map((_,i)=>i+1);
+      const xBar=mean(x), yBar=mean(y);
+      let num=0, den=0; for(let i=0;i<n;i++){ num+=(x[i]-xBar)*(y[i]-yBar); den+=(x[i]-xBar)**2; }
+      return num/den; // per semester
+    }
+    function sparkLabel(delta){
+      if(delta>0.05) return {txt:"Improving", cls:"ok"};
+      if(delta<-0.05) return {txt:"Declining", cls:"bad"};
+      return {txt:"Stable", cls:"warn"};
+    }
+
+    // UI actions
+    document.getElementById('btnAdd').onclick = () => {
+      const name = document.getElementById('sName').value.trim();
+      const s = document.getElementById('sGpas').value.trim();
+      if(!name || !s){ alert('Enter name and comma-separated GPAs.'); return; }
+      const sGpa = s.split(',').map(v=>Number(v.trim())).filter(v=>!isNaN(v));
+      if(!sGpa.length){ alert('No valid GPA numbers found.'); return; }
+      upsertStudent(name, sGpa);
+      document.getElementById('sName').value='';
+      document.getElementById('sGpas').value='';
+    }
+
+    document.getElementById('csv').addEventListener('change', (e)=>{
+      const file = e.target.files[0]; if(!file) return;
+      const fr = new FileReader();
+      fr.onload = () => {
+        const lines = fr.result.split(/\r?\n/).filter(Boolean);
+        // Expect header student,semester,gpa
+        const rows = lines.slice(1).map(l=>l.split(',').map(x=>x.trim())).filter(r=>r.length>=3);
+        const grouped = {};
+        for(const r of rows){
+          const [student, semester, gpa] = r; if(!student) continue;
+          if(!grouped[student]) grouped[student]=[];
+          const g = Number(gpa);
+          if(!isNaN(g)) grouped[student].push({sem: Number(semester)|| (grouped[student].length+1), gpa: g});
+        }
+        for(const name in grouped){
+          grouped[name].sort((a,b)=>a.sem-b.sem);
+          upsertStudent(name, grouped[name].map(x=>x.gpa));
+        }
+      };
+      fr.readAsText(file);
+    });
+
+    document.getElementById('btnTemplate').onclick = () => {
+      const sample = 'student,semester,gpa\nAditi,1,7.2\nAditi,2,7.8\nAditi,3,8.1\nRaghav,1,6.9\nRaghav,2,7.4\nRaghav,3,7.6\n';
+      downloadFile('cgpa_template.csv', sample);
+    }
+
+    document.getElementById('btnExport').onclick = () => {
+      const json = JSON.stringify(state.data, null, 2);
+      downloadFile('cgpa_tracker_export.json', json);
+    }
+    document.getElementById('btnClear').onclick = () => {
+      if(confirm('Clear all students?')){ state.data={}; render(); }
+    }
+
+    function downloadFile(name, content){
+      const blob = new Blob([content], {type:'text/plain'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download=name; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 500);
+    }
+
+    function upsertStudent(name, sGpa){
+      const cgpa = cumulativeAverage(sGpa);
+      state.data[name] = { name, sGpa, cgpa };
+      render();
+    }
+
+    function render(){
+      // left list
+      const list = document.getElementById('studentList');
+      list.innerHTML='';
+      Object.values(state.data).forEach(s=>{
+        const item = document.createElement('div');
+        item.className='student-pill';
+        item.innerHTML = `<b>${s.name}</b><span class="badge">${s.sGpa.length} sem</span>`;
+        item.onclick = ()=> scrollToCard(s.name);
+        list.appendChild(item);
+      });
+
+      // right cards
+      const wrap = document.getElementById('cards');
+      wrap.innerHTML='';
+      Object.values(state.data).forEach(s=>{
+        const el = cardForStudent(s);
+        wrap.appendChild(el);
+      });
+    }
+
+    function cardForStudent(s){
+      const last = s.sGpa[s.sGpa.length-1];
+      const first = s.sGpa[0];
+      const delta = last - s.sGpa[Math.max(0, s.sGpa.length-2)];
+      const totalChange = pct(first, last);
+      const slope = regressionSlope(s.sGpa);
+      const label = sparkLabel(delta);
+      const best = Math.max(...s.sGpa); const bestIdx = s.sGpa.indexOf(best)+1;
+      const cumLast = s.cgpa[s.cgpa.length-1];
+
+      const card = document.createElement('div');
+      card.className='card'; card.id = `card-${cssEscape(s.name)}`;
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px">
+          <h3>${s.name}</h3>
+          <span class="pill ${label.cls}"> ${label.txt} ${delta>=0? '▲' : '▼'} ${Math.abs(delta).toFixed(2)}</span>
+        </div>
+        <div class="insights">
+          <div class="kpi"><div class="label">Latest SGPA</div><div class="value">${last.toFixed(2)}</div><div class="trend">vs prev: ${delta>=0?'+':''}${delta.toFixed(2)}</div></div>
+          <div class="kpi"><div class="label">CGPA (current)</div><div class="value">${cumLast.toFixed(2)}</div><div class="trend">cum avg till last sem</div></div>
+          <div class="kpi"><div class="label">Overall change</div><div class="value">${(totalChange).toFixed(1)}%</div><div class="trend">from Sem 1 (${first.toFixed(2)})</div></div>
+          <div class="kpi"><div class="label">Best semester</div><div class="value">Sem ${bestIdx}</div><div class="trend">${best.toFixed(2)} GPA</div></div>
+        </div>
+        <canvas></canvas>
+        <div style="display:flex; gap:8px; flex-wrap: wrap">
+          <button class="secondary" data-action="edit">Edit</button>
+          <button class="secondary" data-action="delete">Delete</button>
+          <button class="secondary" data-action="copy">Copy data</button>
+        </div>
+      `;
+
+      // Wire buttons
+      const [btnEdit, btnDel, btnCopy] = card.querySelectorAll('button');
+      btnEdit.onclick = ()=>{
+        const newStr = prompt('Edit semester GPAs (comma separated):', s.sGpa.join(', '));
+        if(!newStr) return; const arr = newStr.split(',').map(v=>Number(v.trim())).filter(v=>!isNaN(v));
+        if(arr.length){ upsertStudent(s.name, arr); }
+      }
+      btnDel.onclick = ()=>{
+        if(confirm('Delete '+s.name+'?')){ delete state.data[s.name]; render(); }
+      }
+      btnCopy.onclick = ()=>{
+        const text = `${s.name}: ${s.sGpa.join(', ')}`; navigator.clipboard.writeText(text); alert('Copied: '+text);
+      }
+
+      // Chart
+      const ctx = card.querySelector('canvas').getContext('2d');
+      const labels = s.sGpa.map((_,i)=>'Sem '+(i+1));
+      new Chart(ctx, {
+        type:'line',
+        data:{
+          labels,
+          datasets:[
+            {label:'SGPA', data:s.sGpa, tension:.3},
+            {label:'CGPA', data:s.cgpa, tension:.3}
+          ]
+        },
+        options:{
+          responsive:true,
+          plugins:{ legend:{ display:true } },
+          scales:{ y:{ beginAtZero:false, suggestedMin:5, suggestedMax:10 } }
+        }
+      });
+
+      return card;
+    }
+
+    function cssEscape(s){return s.replace(/[^a-zA-Z0-9_-]/g,'_');}
+    function scrollToCard(name){
+      const el = document.getElementById('card-'+cssEscape(name)); if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    // Seed example
+    upsertStudent('Aditi', [7.2,7.8,8.1,8.4]);
+    upsertStudent('Raghav', [6.9,7.4,7.6,7.5,7.7]);
+  </script>
+</body>
+</html>
